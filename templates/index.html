@@ -1,0 +1,525 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row">
+    <!-- 账号管理 -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>账号管理
+                </h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-success btn-sm mb-3" data-bs-toggle="modal" data-bs-target="#addAccountModal">
+                    <i class="fas fa-plus me-1"></i>添加账号
+                </button>
+                <button class="btn btn-warning btn-sm mb-3 ms-2" onclick="loginAllAccounts()">
+                    <i class="fas fa-sign-in-alt me-1"></i>全部登录
+                </button>
+                
+                <div class="list-group" id="accounts-list">
+                    {% for account in accounts %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ account.name }}</h6>
+                                <small class="text-muted">{{ account.account }}</small>
+                            </div>
+                            <div>
+                                {% if account.is_active %}
+                                <span class="badge bg-success me-1">启用</span>
+                                {% else %}
+                                <span class="badge bg-secondary me-1">禁用</span>
+                                {% endif %}
+                                <button class="btn btn-primary btn-sm me-1" onclick="loginAccount({{ account.id }})">
+                                    <i class="fas fa-sign-in-alt"></i>
+                                </button>
+                                <button class="btn btn-warning btn-sm me-1" onclick="editAccount({{ account.id }})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteAccount({{ account.id }})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志查看 -->
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-alt me-2"></i>登录日志
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">日期筛选</label>
+                        <input type="date" class="form-control" id="log-date-filter">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">账号筛选</label>
+                        <select class="form-select" id="log-account-filter">
+                            <option value="">全部账号</option>
+                            {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">状态筛选</label>
+                        <select class="form-select" id="log-status-filter">
+                            <option value="">全部状态</option>
+                            <option value="success">成功</option>
+                            <option value="failed">失败</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">自动刷新</label>
+                        <select class="form-select" id="auto-refresh-interval">
+                            <option value="0">关闭</option>
+                            <option value="5">5秒</option>
+                            <option value="10">10秒</option>
+                            <option value="20">20秒</option>
+                            <option value="30">30秒</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-3">
+                    <button class="btn btn-primary btn-sm" onclick="refreshLogs()">
+                        <i class="fas fa-refresh me-1"></i>刷新日志
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="clearLogs()">
+                        <i class="fas fa-trash me-1"></i>清空日志
+                    </button>
+                </div>
+                
+                <div class="log-container" id="logs-container">
+                    <div class="text-center text-muted">
+                        <i class="fas fa-spinner fa-spin me-2"></i>加载中...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 邮件配置 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-envelope me-2"></i>邮件配置
+                </h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-success btn-sm mb-3" data-bs-toggle="modal" data-bs-target="#addEmailModal">
+                    <i class="fas fa-plus me-1"></i>添加邮件配置
+                </button>
+                
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>SMTP服务器</th>
+                                <th>端口</th>
+                                <th>发件人</th>
+                                <th>收件人</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="email-configs-list">
+                            {% for config in email_configs %}
+                            <tr>
+                                <td>{{ config.smtp_server }}</td>
+                                <td>{{ config.smtp_port }}</td>
+                                <td>{{ config.sender_email }}</td>
+                                <td>{{ config.receiver_email }}</td>
+                                <td>
+                                    {% if config.is_active %}
+                                    <span class="badge bg-success">启用</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">禁用</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-warning btn-sm me-1" onclick="editEmailConfig({{ config.id }})">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="deleteEmailConfig({{ config.id }})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 定时任务状态 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>定时任务状态
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div id="scheduler-status">
+                        <i class="fas fa-spinner fa-spin me-2"></i>加载中...
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="runSchedulerJob()">
+                        <i class="fas fa-play me-1"></i>手动执行
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加账号模态框 -->
+<div class="modal fade" id="addAccountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加账号</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAccountForm">
+                    <div class="mb-3">
+                        <label class="form-label">账号名称</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">登录账号</label>
+                        <input type="email" class="form-control" name="account" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">登录密码</label>
+                        <input type="password" class="form-control" name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_active" checked>
+                            <label class="form-check-label">启用账号</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="addAccount()">添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加邮件配置模态框 -->
+<div class="modal fade" id="addEmailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加邮件配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addEmailForm">
+                    <div class="mb-3">
+                        <label class="form-label">SMTP服务器</label>
+                        <input type="text" class="form-control" name="smtp_server" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">SMTP端口</label>
+                        <input type="number" class="form-control" name="smtp_port" value="465" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">发件人邮箱</label>
+                        <input type="email" class="form-control" name="sender_email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">发件人密码</label>
+                        <input type="password" class="form-control" name="sender_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">收件人邮箱</label>
+                        <input type="email" class="form-control" name="receiver_email" required>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_active" checked>
+                            <label class="form-check-label">启用配置</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="addEmailConfig()">添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 页面加载完成后执行
+$(document).ready(function() {
+    // 更新当前时间
+    updateCurrentTime();
+    setInterval(updateCurrentTime, 1000);
+    
+    // 加载日志
+    refreshLogs();
+    
+    // 加载定时任务状态
+    refreshSchedulerStatus();
+    setInterval(refreshSchedulerStatus, 30000);
+    
+    // 自动刷新日志
+    $('#auto-refresh-interval').change(function() {
+        const interval = $(this).val();
+        if (interval > 0) {
+            setInterval(refreshLogs, interval * 1000);
+        }
+    });
+    
+    // 筛选器变化时刷新日志
+    $('#log-date-filter, #log-account-filter, #log-status-filter').change(function() {
+        refreshLogs();
+    });
+    
+    // 设置默认日期为今天
+    const today = new Date().toISOString().split('T')[0];
+    $('#log-date-filter').val(today);
+    
+    // 防止Render闲置关闭服务器
+    setInterval(function() {
+        $.get('/api/health', function(data) {
+            console.log('Health check:', data);
+        });
+    }, 20000);
+});
+
+// 更新当前时间
+function updateCurrentTime() {
+    const now = new Date();
+    const timeString = now.toLocaleString('zh-CN');
+    $('#current-time').text(timeString);
+}
+
+// 刷新日志
+function refreshLogs() {
+    const date = $('#log-date-filter').val();
+    const accountId = $('#log-account-filter').val();
+    const status = $('#log-status-filter').val();
+    
+    let url = '/api/logs?';
+    if (date) url += 'date=' + date + '&';
+    if (accountId) url += 'account_id=' + accountId + '&';
+    if (status) url += 'status=' + status;
+    
+    $.get(url, function(data) {
+        let html = '';
+        if (data.length === 0) {
+            html = '<div class="text-center text-muted">暂无日志记录</div>';
+        } else {
+            data.forEach(log => {
+                const statusClass = log.status === 'success' ? 'success' : 'danger';
+                const statusIcon = log.status === 'success' ? 'check-circle' : 'times-circle';
+                const time = new Date(log.created_at).toLocaleString('zh-CN');
+                
+                html += `
+                    <div class="log-entry alert alert-${statusClass} alert-dismissible fade show" role="alert">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <i class="fas fa-${statusIcon} me-2"></i>
+                                <strong>${log.account_name || '未知账号'}</strong>
+                                <span class="badge bg-${statusClass} ms-2">${log.status === 'success' ? '成功' : '失败'}</span>
+                            </div>
+                            <small class="text-muted">${time}</small>
+                        </div>
+                        <div class="mt-2">
+                            <small>${log.message || '无详细信息'}</small>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+            });
+        }
+        $('#logs-container').html(html);
+    });
+}
+
+// 清空日志
+function clearLogs() {
+    if (confirm('确定要清空日志吗？')) {
+        const date = $('#log-date-filter').val();
+        $.ajax({
+            url: '/api/logs/clear',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ date: date }),
+            success: function() {
+                showToast('日志已清空', 'success');
+                refreshLogs();
+            }
+        });
+    }
+}
+
+// 添加账号
+function addAccount() {
+    const formData = $('#addAccountForm').serializeArray();
+    const data = {};
+    formData.forEach(item => {
+        data[item.name] = item.value;
+    });
+    
+    $.ajax({
+        url: '/api/accounts',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function() {
+            showToast('账号添加成功', 'success');
+            $('#addAccountModal').modal('hide');
+            location.reload();
+        }
+    });
+}
+
+// 登录单个账号
+function loginAccount(accountId) {
+    $.ajax({
+        url: '/api/login/' + accountId,
+        method: 'POST',
+        success: function() {
+            showToast('正在执行登录...', 'info');
+        }
+    });
+}
+
+// 登录所有账号
+function loginAllAccounts() {
+    if (confirm('确定要为所有账号执行登录吗？')) {
+        $.ajax({
+            url: '/api/login/all',
+            method: 'POST',
+            success: function() {
+                showToast('正在为所有账号执行登录...', 'info');
+            }
+        });
+    }
+}
+
+// 删除账号
+function deleteAccount(accountId) {
+    if (confirm('确定要删除这个账号吗？')) {
+        $.ajax({
+            url: '/api/accounts/' + accountId,
+            method: 'DELETE',
+            success: function() {
+                showToast('账号删除成功', 'success');
+                location.reload();
+            }
+        });
+    }
+}
+
+// 添加邮件配置
+function addEmailConfig() {
+    const formData = $('#addEmailForm').serializeArray();
+    const data = {};
+    formData.forEach(item => {
+        data[item.name] = item.value;
+    });
+    
+    $.ajax({
+        url: '/api/email_configs',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function() {
+            showToast('邮件配置添加成功', 'success');
+            $('#addEmailModal').modal('hide');
+            location.reload();
+        }
+    });
+}
+
+// 删除邮件配置
+function deleteEmailConfig(configId) {
+    if (confirm('确定要删除这个邮件配置吗？')) {
+        $.ajax({
+            url: '/api/email_configs/' + configId,
+            method: 'DELETE',
+            success: function() {
+                showToast('邮件配置删除成功', 'success');
+                location.reload();
+            }
+        });
+    }
+}
+
+// 刷新定时任务状态
+function refreshSchedulerStatus() {
+    $.get('/api/scheduler/status', function(data) {
+        let html = '';
+        if (data.running) {
+            html += '<span class="badge bg-success me-2">运行中</span>';
+        } else {
+            html += '<span class="badge bg-danger me-2">已停止</span>';
+        }
+        
+        html += '<div class="mt-2">';
+        data.jobs.forEach(job => {
+            html += `<div><strong>${job.name}</strong> - 下次运行: ${job.next_run ? new Date(job.next_run).toLocaleString('zh-CN') : '无'}</div>`;
+        });
+        html += '</div>';
+        
+        $('#scheduler-status').html(html);
+    });
+}
+
+// 手动执行定时任务
+function runSchedulerJob() {
+    $.ajax({
+        url: '/api/scheduler/run',
+        method: 'POST',
+        success: function() {
+            showToast('定时任务执行完成', 'success');
+        }
+    });
+}
+
+// 显示提示消息
+function showToast(message, type = 'info') {
+    const toastEl = document.getElementById('liveToast');
+    const toastMessage = document.getElementById('toast-message');
+    
+    toastMessage.textContent = message;
+    toastEl.className = `toast bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'primary'} text-white`;
+    
+    const toast = new bootstrap.Toast(toastEl);
+    toast.show();
+}
+</script>
+{% endblock %}
